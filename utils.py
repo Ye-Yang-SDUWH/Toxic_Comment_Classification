@@ -10,7 +10,7 @@ class Focal_Loss(nn.Module):
 
     def forward(self, inputs, targets):
         criterion = nn.BCELoss()
-        loss = criterion(inputs, targets)
+        loss = criterion(inputs, targets,reduce=False)
         pt = torch.exp(-loss)
         F_loss = self.alpha * (1-pt)**self.gamma * loss
-        return F_loss
+        return torch.mean(F_loss)
