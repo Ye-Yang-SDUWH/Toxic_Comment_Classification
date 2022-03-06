@@ -10,14 +10,16 @@ from tqdm import tqdm
 from functools import partial
 from os.path import join as pjoin
 from torch.utils.data import DataLoader, RandomSampler
-from data import ToxicDataset,load_data,collate_fn
-from model import load_tokenizer,BertClassifier
+from data import ToxicDataset, load_data, collate_fn
+from model import load_tokenizer, BertClassifier
+
 
 def init():
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')
-    if not os.path.exists(pjoin('./checkpoints',args.exp_name)):
-        os.makedirs(pjoin('./checkpoints',args.exp_name))
+    if not os.path.exists(pjoin('./checkpoints', args.exp_name)):
+        os.makedirs(pjoin('./checkpoints', args.exp_name))
+
 
 def train(model, iterator, optimizer, scheduler):
     model.train()
@@ -31,6 +33,7 @@ def train(model, iterator, optimizer, scheduler):
         optimizer.step()
         scheduler.step()
     print(f"Train loss {total_loss / len(iterator)}")
+
 
 def evaluate(model, iterator):
     model.eval()
@@ -69,7 +72,7 @@ def train_and_eval(args):
     train_iterator = DataLoader(train_dataset, batch_size=args.batch_size, sampler=train_sampler, collate_fn=collate_fn)
     dev_iterator = DataLoader(dev_dataset, batch_size=args.batch_size, sampler=dev_sampler, collate_fn=collate_fn)
 
-    model = BertClassifier(BertModel.from_pretrained(args.bertname), 6).to(device)
+    model = BertClassifier(args).to(device)
 
     no_decay = ['bias', 'LayerNorm.weight']
     optimizer_grouped_parameters = [
@@ -121,8 +124,14 @@ if __name__ == "__main__":
                         help='Size of batch)')
     parser.add_argument('--epochs', type=int, default=1, metavar='N',
                         help='number of episode to train ')
-    parser.add_argument('--warmup_steps', type=int,default=10**3)
-    parser.add_argument('--lr',type=float,default=2e-5)
+    parser.add_argument('--warmup_steps', type=int, default=10**3)
+    parser.add_argument('--lr', type=float, default=2e-5)
+    parser.add_argument('--num_classes', type=int, default=6)
+    parser.add_argument('--bert_path', type=str, default='./bert_trunct.pkl')
+    parser.add_argument('--lstm_hidden_size', type=int, default=200)
+    parser.add_argument('--cnn_dim', type=int, default=200)
+    parser.add_argument('--cnn_kernel', type=int, default=3)
+    parser.add_argument('--cnn_stridem', type=int, default=2)
     args = parser.parse_args()
 
     init()
