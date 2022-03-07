@@ -2,7 +2,7 @@ import torch
 import os
 import torch.nn as nn
 from utils import Focal_Loss
-from capsnet import DigitCaps, PrimaryCaps
+from capsnet import Capsule
 from transformers import BertTokenizer, BertModel, AutoConfig
 
 
@@ -17,6 +17,7 @@ class BertClassifier(nn.Module):
         super().__init__()
         self.bert = BertModel.from_pretrained(args.bertname)
         self.classifier = nn.Linear(self.bert.config.hidden_size, args.num_classes)
+
 
     def forward(self, input_ids, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
                 labels=None):
@@ -58,34 +59,11 @@ class BertClassifierCustom(nn.Module):
                 torch.save(self.bert, f)
 
         if args.classifier == 'cnn':
-            cnn_output_len = (512 - args.cnn_kernel) // args.stride + 1
-            cnn_output_len = (cnn_output_len - args.kernel) // args.stride + 1
-            self.classifier = nn.Sequential(
-                TransposeModule(),
-                nn.Conv1d(bert_config.hidden_size, args.cnn_dim, args.cnn_kernel, stride=args.cnn_stride),
-                nn.LayerNorm(),
-                nn.LeakyReLU(),
-                nn.Conv1d(args.cnn_dim, args.cnn_dim // 10, args.cnn_kernel, stride=args.cnn_stride),
-                nn.LayerNorm(),
-                nn.LeakyReLU(),
-                nn.Flatten(),
-                nn.Linear(cnn_output_len * args.cnn_dim // 10, args.num_classes)
-            )
+            self.classifier = self.build_cnn_layer(bert_config.hidden_size, args)
         elif args.classifier == 'bi_lstm':
-            self.classifier = nn.Sequential(
-                nn.LSTM(bert_config.hidden_size, args.lstm_hidden_size // 2,
-                        num_layers=1, bidirectional=True, batch_first=True),
-                nn.LayerNorm(),
-                nn.Tanh(),
-                nn.LSTM(bert_config.hidden_size, args.lstm_hidden_size // 20,
-                        num_layers=1, bidirectional=True, batch_first=True),
-                nn.LayerNorm(),
-                nn.Tanh(),
-                nn.Flatten(),
-                nn.Linear(512 * args.lstm_hidden_size // 10, args.num_classes)
-            )
+            self.classifier = self.build_bi_lstm_layer(bert_config.hidden_size, args)
         elif args.classifier == 'capsule':
-            self.classifier = None
+            self.classifier = self.build_capsule_net(bert_config.hidden_size)
         else:
             raise NotImplementedError
 
@@ -98,8 +76,39 @@ class BertClassifierCustom(nn.Module):
                             head_mask=head_mask)
         cls_output = self.classifier(outputs)  # batch, 6
         cls_output = torch.sigmoid(cls_output)
-        criterion = Focal_Loss()
+        criterion = nn.BCELoss()
         loss = 0
         if labels is not None:
             loss = criterion(cls_output, labels)
         return loss, cls_output
+
+    def build_cnn_layer(self, input_dim, args):
+        cnn_output_len1 = (512 - args.cnn_kernel) // args.stride + 1
+        cnn_output_len2 = (cnn_output_len1 - args.kernel) // args.stride + 1
+        return nn.Sequential(
+            TransposeModule(),
+            nn.Conv1d(input_dim, args.cnn_dim, args.cnn_kernel, stride=args.cnn_stride),
+            nn.LayerNorm([args.cnn_dim, cnn_output_len1]),
+            nn.LeakyReLU(),
+            nn.Flatten(),
+            nn.Linear(cnn_output_len2 * args.cnn_dim, args.num_classes),
+        )
+
+    def build_bi_lstm_layer(self, input_dim, args):
+        return nn.Sequential(
+            nn.LSTM(input_dim, args.lstm_hidden_size // 2,
+                    num_layers=1, bidirectional=True, batch_first=True),
+            nn.LayerNorm([]),
+            nn.Tanh(),
+            nn.Flatten(),
+            nn.Linear(512 * args.lstm_hidden_size, args.num_classes),
+        )
+
+    def build_capsule_net(self, input_dim, args):
+        return nn.Sequential(
+            TransposeModule(),
+            Capsule(input_dim=input_dim, num_capsule=args.num_capsule,
+                    dim_capsule=args.dim_capsule, routings=args.routings, kernel_size=(args.capsule_kernel, 1)),
+            nn.Flatten(),
+            nn.Linear(self.num_capsule * self.dim_capsule, args.num_classes),
+        )

@@ -11,7 +11,7 @@ from functools import partial
 from os.path import join as pjoin
 from torch.utils.data import DataLoader, RandomSampler
 from data import ToxicDataset, load_data, collate_fn
-from model import load_tokenizer, BertClassifier
+from model import load_tokenizer, BertClassifierCustom
 
 
 def init():
@@ -72,7 +72,7 @@ def train_and_eval(args):
     train_iterator = DataLoader(train_dataset, batch_size=args.batch_size, sampler=train_sampler, collate_fn=collate_fn)
     dev_iterator = DataLoader(dev_dataset, batch_size=args.batch_size, sampler=dev_sampler, collate_fn=collate_fn)
 
-    model = BertClassifier(args).to(device)
+    model = BertClassifierCustom(args).to(device)
 
     no_decay = ['bias', 'LayerNorm.weight']
     optimizer_grouped_parameters = [
@@ -128,10 +128,15 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=2e-5)
     parser.add_argument('--num_classes', type=int, default=6)
     parser.add_argument('--bert_path', type=str, default='./bert_trunct.pkl')
-    parser.add_argument('--lstm_hidden_size', type=int, default=200)
-    parser.add_argument('--cnn_dim', type=int, default=200)
+    parser.add_argument('--lstm_hidden_size', type=int, default=20)
+    parser.add_argument('--cnn_dim', type=int, default=20)
     parser.add_argument('--cnn_kernel', type=int, default=3)
-    parser.add_argument('--cnn_stridem', type=int, default=2)
+    parser.add_argument('--cnn_stride', type=int, default=2)
+    parser.add_argument('--num_capsule', type=int, default=10)
+    parser.add_argument('--dim_capsule', type=int, default=16)
+    parser.add_argument('--routings', type=int, default=3)
+    parser.add_argument('--capsule_kernel', type=int, default=9)
+
     args = parser.parse_args()
 
     init()
