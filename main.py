@@ -14,11 +14,15 @@ from data import ToxicDataset, load_data, collate_fn
 from model import load_tokenizer, BertClassifierCustom
 
 
-def init():
+def init(args):
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')
     if not os.path.exists(pjoin('./checkpoints', args.exp_name)):
         os.makedirs(pjoin('./checkpoints', args.exp_name))
+
+
+def save_checkpoint(model, suffix):
+    torch.save(model.state_dict(), pjoin('./checkpoints', suffix + '.pth'))
 
 
 def train(model, iterator, optimizer, scheduler):
@@ -91,6 +95,9 @@ def train_and_eval(args):
         evaluate(model, dev_iterator)
 
     model.eval()
+
+    save_checkpoint(model, args.exp_name)
+
     test_df = pd.read_csv(os.path.join(args.path, 'test.csv'))
     submission = pd.read_csv(os.path.join(args.path, 'sample_submission.csv'))
     columns = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
@@ -141,6 +148,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    init()
+    init(args)
 
     train_and_eval(args)
