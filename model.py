@@ -42,28 +42,22 @@ class TransposeModule(nn.Module):
     def forward(self, x):
         return x.permute([0, 2, 1]).contiguous()
 
+
 class BiLSTM(nn.Module):
     def __init__(self, input_dim, output_dim):
         super().__init__()
         self.layer = nn.LSTM(input_dim, output_dim // 2,
-                    num_layers=1, bidirectional=True, batch_first=True)
+                             num_layers=1, bidirectional=True, batch_first=True)
 
     def forward(self, x):
         return self.layer(x)[0]
+
 
 class BertClassifierCustom(nn.Module):
     def __init__(self, args):
         super().__init__()
         bert_config = AutoConfig.from_pretrained(args.bertname)
-        if os.path.exists(args.bert_path):
-            with open(args.bert_path) as f:
-                self.bert = torch.load(f)
-        else:
-            bert = BertModel.from_pretrained(args.bertname)
-            # remove the pooling layer at the end of bertmodel
-            self.bert = torch.nn.Sequential(*(list(bert.children())[:-1]))
-            with open(args.bert_path) as f:
-                torch.save(self.bert, f)
+        self.bert = BertModel.from_pretrained(args.bertname)
 
         if args.classifier == 'cnn':
             self.classifier = self.build_cnn_layer(bert_config.hidden_size, args)
@@ -72,8 +66,13 @@ class BertClassifierCustom(nn.Module):
             self.classifier = self.build_bi_lstm_layer(bert_config.hidden_size, args)
             self.capsule = self.build_capsule_net(args.lstm_hidden_size, args)
         else:
-            raise NotImplementedError
+            self.classifier = nn.Identity()
+            self.capsule = self.build_capsule_net(bert_config.hidden_size, args)
 
+        if not args.focal_loss:
+            self.criterion = nn.BCELoss()
+        else:
+            self.criterion = Focal_Loss()
 
     def forward(self, input_ids, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
                 labels=None):
@@ -85,10 +84,9 @@ class BertClassifierCustom(nn.Module):
         # outputs : [N, L, C]
         cls_output = self.capsule(self.classifier(outputs))  # batch, 6
         cls_output = torch.sigmoid(cls_output)
-        criterion = nn.BCELoss()
         loss = 0
         if labels is not None:
-            loss = criterion(cls_output, labels)
+            loss = self.criterion(cls_output, labels)
         return loss, cls_output
 
     def build_cnn_layer(self, input_dim, args):

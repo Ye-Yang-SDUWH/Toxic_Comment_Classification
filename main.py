@@ -109,7 +109,7 @@ def train_and_eval(args):
             _, outputs = model(x, attention_mask=mask)
         outputs = outputs.cpu().numpy()
         submission.iloc[i * args.batch_size: (i + 1) * args.batch_size][columns] = outputs
-    submission.to_csv("submission.csv", index=False)
+    submission.to_csv(f"submission_{args.exp_name}.csv", index=False)
 
 
 if __name__ == "__main__":
@@ -126,6 +126,7 @@ if __name__ == "__main__":
                         help='number of episode to train ')
     parser.add_argument('--warmup_steps', type=int, default=10**3)
     parser.add_argument('--lr', type=float, default=2e-5)
+    parser.add_argument('--focal_loss', action='store_true')
     parser.add_argument('--num_classes', type=int, default=6)
     parser.add_argument('--bert_path', type=str, default='./bert_trunct.pkl')
     parser.add_argument('--lstm_hidden_size', type=int, default=20)
