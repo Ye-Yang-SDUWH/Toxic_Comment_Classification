@@ -109,8 +109,6 @@ def train_and_eval(args):
         texts = []
         for text in batch_df["comment_text"].tolist():
             text = tokenizer.encode(text, add_special_tokens=True, max_length=128)
-            if len(text) > 120:
-                text = text[:119] + [tokenizer.sep_token_id]
             texts.append(torch.LongTensor(text))
         x = pad_sequence(texts, batch_first=True, padding_value=tokenizer.pad_token_id).to(device)
         mask = (x != tokenizer.pad_token_id).float().to(device)
@@ -120,10 +118,11 @@ def train_and_eval(args):
         submission.iloc[i * args.batch_size: (i + 1) * args.batch_size][columns] = outputs
     submission.to_csv(f"submission_{args.exp_name}.csv", index=False)
 
-    local_auc = local_evaluate(submission, args.true_label_csv, columns)
-    print('Column-wise AUC: ')
-    print(' | '.join(columns + ['average']))
-    print(' | '.join(map(str, local_auc)))
+    if os.path.exists(args.true_label_csv):
+        local_auc = local_evaluate(submission, args.true_label_csv, columns)
+        print('Column-wise AUC: ')
+        print(' | '.join(columns + ['average']))
+        print(' | '.join(map(str, local_auc)))
 
 
 if __name__ == "__main__":
@@ -132,6 +131,7 @@ if __name__ == "__main__":
     parser.add_argument('--exp_name', type=str, default='exp')
     parser.add_argument('--datapath', type=str, default='../data')
     parser.add_argument('--bertname', type=str, default='bert-base-uncased')
+    parser.add_argument('--path', type=str, default='./')
     parser.add_argument('--MAX_LEN', type=int, default=128)
     parser.add_argument('--seed', type=int, default=403)
     parser.add_argument('--batch_size', type=int, default=32, metavar='batch_size',
