@@ -70,8 +70,8 @@ def train_and_eval(args):
     train_df, val_df = load_data(args.path)
     tokenizer = load_tokenizer(args.bertname)
 
-    train_dataset = ToxicDataset(tokenizer, train_df, lazy=True)
-    dev_dataset = ToxicDataset(tokenizer, val_df, lazy=True)
+    train_dataset = ToxicDataset(tokenizer, train_df, args.max_len, lazy=True)
+    dev_dataset = ToxicDataset(tokenizer, val_df, args.max_len, lazy=True)
     collate_fn = partial(collate_fn, device=device)
     train_sampler = RandomSampler(train_dataset)
     dev_sampler = RandomSampler(dev_dataset)
@@ -132,7 +132,7 @@ if __name__ == "__main__":
     parser.add_argument('--datapath', type=str, default='../data')
     parser.add_argument('--bertname', type=str, default='bert-base-uncased')
     parser.add_argument('--path', type=str, default='./')
-    parser.add_argument('--MAX_LEN', type=int, default=128)
+    parser.add_argument('--max_len', type=int, default=128)
     parser.add_argument('--seed', type=int, default=403)
     parser.add_argument('--batch_size', type=int, default=32, metavar='batch_size',
                         help='Size of batch)')
