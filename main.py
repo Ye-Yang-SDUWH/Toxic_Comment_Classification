@@ -72,11 +72,12 @@ def train_and_eval(args):
 
     train_dataset = ToxicDataset(tokenizer, train_df, args.max_len, lazy=True)
     dev_dataset = ToxicDataset(tokenizer, val_df, args.max_len, lazy=True)
-    collate_fn = partial(collate_fn, device=device)
+    collate_fn_m = partial(collate_fn, device=device)
     train_sampler = RandomSampler(train_dataset)
     dev_sampler = RandomSampler(dev_dataset)
-    train_iterator = DataLoader(train_dataset, batch_size=args.batch_size, sampler=train_sampler, collate_fn=collate_fn)
-    dev_iterator = DataLoader(dev_dataset, batch_size=args.batch_size, sampler=dev_sampler, collate_fn=collate_fn)
+    train_iterator = DataLoader(train_dataset, batch_size=args.batch_size,
+                                sampler=train_sampler, collate_fn=collate_fn_m)
+    dev_iterator = DataLoader(dev_dataset, batch_size=args.batch_size, sampler=dev_sampler, collate_fn=collate_fn_m)
 
     model = BertClassifierCustom(args).to(device)
 
