@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,7 +13,7 @@ class Focal_Loss(nn.Module):
         self.gamma = gamma
 
     def forward(self, inputs, targets):
-        #criterion = nn.BCELoss()
+        # criterion = nn.BCELoss()
         BCE_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduce=False)
         pt = torch.exp(-BCE_loss)
         alphas = self.alpha * targets + (1 - self.alpha) * (1 - targets)
@@ -33,3 +34,13 @@ def local_evaluate(submission_df, test_labels, columns):
         columns_auc.append(auc(test_labels[col + '_pred'], test_labels[col + '_true']))
     columns_auc.append(torch.mean(columns_auc))
     return columns_auc
+
+
+if __name__ == '__main__':
+    if os.path.exists('submission.csv') and os.path.exists('true_labels.csv'):
+        submission_df = pd.read_csv('submission.csv')
+        labels_df = pd.array('true_labels.csv')
+        columns = submission_df.columns[1:]
+        print(local_evaluate(submission_df, labels_df, columns))
+    else:
+        print('Target csv not found...')
