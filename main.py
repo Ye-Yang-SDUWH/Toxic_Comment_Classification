@@ -1,4 +1,5 @@
 import os
+from threading import local
 import pandas as pd
 import numpy as np
 import argparse
@@ -12,6 +13,7 @@ from os.path import join as pjoin
 from torch.utils.data import DataLoader, RandomSampler
 from data import ToxicDataset, load_data, collate_fn
 from model import load_tokenizer, BertClassifierCustom
+from utils import local_evaluate
 
 
 def init(args):
@@ -118,6 +120,11 @@ def train_and_eval(args):
         submission.iloc[i * args.batch_size: (i + 1) * args.batch_size][columns] = outputs
     submission.to_csv(f"submission_{args.exp_name}.csv", index=False)
 
+    local_auc = local_evaluate(submission, args.true_label_csv, columns)
+    print('Column-wise AUC: ')
+    print(' | '.join(columns + ['average']))
+    print(' | '.join(map(str, local_auc)))
+
 
 if __name__ == "__main__":
     # Training settings
@@ -129,6 +136,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=403)
     parser.add_argument('--batch_size', type=int, default=32, metavar='batch_size',
                         help='Size of batch)')
+    parser.add_argument('--true_label_csv', type=str, default='./true_labels.csv')
     parser.add_argument('--epochs', type=int, default=1, metavar='N',
                         help='number of episode to train ')
     parser.add_argument('--warmup_steps', type=int, default=10**3)
