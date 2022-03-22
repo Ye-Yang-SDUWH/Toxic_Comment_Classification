@@ -155,7 +155,7 @@ if __name__ == "__main__":
     parser.add_argument('--dim_capsule', type=int, default=16)
     parser.add_argument('--routings', type=int, default=3)
     parser.add_argument('--capsule_kernel', type=int, default=9)
-    parser.add_argument('--classifier', type=str, choices=['bi_lstm', 'cnn', 'capsule'], default='none')
+    parser.add_argument('--classifier', type=str, choices=['bi_lstm', 'cnn', 'capsule', 'none'], default='none')
 
     args = parser.parse_args()
 
