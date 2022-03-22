@@ -33,7 +33,7 @@ def local_evaluate(submission_df, test_labels, columns):
     columns_auc = []
     for col in columns:
         columns_auc.append(auc(test_labels[col + '_pred'], test_labels[col + '_true']))
-    columns_auc.append(torch.mean(columns_auc))
+    columns_auc.append(sum(columns_auc) / len(columns_auc))
     return columns_auc
 
 

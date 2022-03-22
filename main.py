@@ -1,5 +1,4 @@
 import os
-from threading import local
 import pandas as pd
 import numpy as np
 import argparse
@@ -12,7 +11,7 @@ from functools import partial
 from os.path import join as pjoin
 from torch.utils.data import DataLoader, RandomSampler
 from data import ToxicDataset, load_data, collate_fn
-from model import load_tokenizer, BertClassifierCustom
+from model import BertClassifier, load_tokenizer, BertClassifierCustom
 from utils import local_evaluate
 
 
@@ -79,7 +78,10 @@ def train_and_eval(args):
                                 sampler=train_sampler, collate_fn=collate_fn_m)
     dev_iterator = DataLoader(dev_dataset, batch_size=args.batch_size, sampler=dev_sampler, collate_fn=collate_fn_m)
 
-    model = BertClassifierCustom(args).to(device)
+    if args.classifier == 'none':
+        model = BertClassifier(args)
+    else:
+        model = BertClassifierCustom(args).to(device)
 
     no_decay = ['bias', 'LayerNorm.weight']
     optimizer_grouped_parameters = [
@@ -153,7 +155,7 @@ if __name__ == "__main__":
     parser.add_argument('--dim_capsule', type=int, default=16)
     parser.add_argument('--routings', type=int, default=3)
     parser.add_argument('--capsule_kernel', type=int, default=9)
-    parser.add_argument('--classifier', type=str, choices=['bi_lstm', 'cnn', 'capsule'], default='bi_lstm')
+    parser.add_argument('--classifier', type=str, choices=['bi_lstm', 'cnn', 'capsule'], default='none')
 
     args = parser.parse_args()
 

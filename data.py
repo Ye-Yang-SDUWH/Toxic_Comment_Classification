@@ -33,7 +33,8 @@ class ToxicDataset(Dataset):
             self.df = dataframe
 
     def row_to_tensor(self, tokenizer: BertTokenizer, row: pd.Series) -> Tuple[torch.LongTensor, torch.LongTensor]:
-        tokens = tokenizer.encode(row["comment_text"], add_special_tokens=True, max_length=self.max_seq_len)
+        tokens = tokenizer.encode(row["comment_text"], add_special_tokens=True,
+                                  truncation=True, max_length=self.max_seq_len)
         x = torch.LongTensor(tokens)
         y = torch.FloatTensor(row[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]])
         return x, y
