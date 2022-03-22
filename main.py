@@ -79,7 +79,7 @@ def train_and_eval(args):
     dev_iterator = DataLoader(dev_dataset, batch_size=args.batch_size, sampler=dev_sampler, collate_fn=collate_fn_m)
 
     if args.classifier == 'none':
-        model = BertClassifier(args)
+        model = BertClassifier(args).to(device)
     else:
         model = BertClassifierCustom(args).to(device)
 
