@@ -25,7 +25,7 @@ class BertClassifier(nn.Module):
                             attention_mask=attention_mask,
                             token_type_ids=token_type_ids,
                             position_ids=position_ids,
-                            head_mask=head_mask).last_hidden_state
+                            head_mask=head_mask)
         cls_output = outputs[1]  # batch, hidden
         cls_output = self.classifier(cls_output)  # batch, 6
         cls_output = torch.sigmoid(cls_output)
