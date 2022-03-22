@@ -1,4 +1,5 @@
 import os
+import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -37,9 +38,14 @@ def local_evaluate(submission_df, test_labels, columns):
 
 
 if __name__ == '__main__':
-    if os.path.exists('submission.csv') and os.path.exists('true_labels.csv'):
-        submission_df = pd.read_csv('submission.csv')
-        labels_df = pd.array('true_labels.csv')
+    submission_csv = sys.argv[1]
+    if len(sys.argv) > 2:
+        true_label_csv = sys.argv[2]
+    else:
+        true_label_csv = 'true_labels.csv'
+    if os.path.exists(submission_csv) and os.path.exists(true_label_csv):
+        submission_df = pd.read_csv(submission_csv)
+        labels_df = pd.read_csv(true_label_csv)
         columns = submission_df.columns[1:]
         print(local_evaluate(submission_df, labels_df, columns))
     else:
