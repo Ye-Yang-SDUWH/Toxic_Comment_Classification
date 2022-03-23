@@ -15,10 +15,11 @@ class Capsule(nn.Module):
         self.W = nn.Parameter(torch.randn((self.num_capsule * self.dim_capsule, input_dim, 1)))
 
     def forward(self, u_vecs):
-        u_hat_vecs = F.conv1d(u_vecs, self.W).permute([0, 2, 1])
+        # u_vecs.shape = [N, C, L]
+        u_hat_vecs = F.conv1d(u_vecs, self.W).permute([0, 2, 1]) # [N, L, n*d]
 
-        batch_size = u_vecs.shape[0]
-        input_num_capsule = u_vecs.shape[1]
+        batch_size = u_hat_vecs.shape[0]
+        input_num_capsule = u_hat_vecs.shape[1]
         u_hat_vecs = u_hat_vecs.reshape(batch_size, input_num_capsule,
                                         self.num_capsule, self.dim_capsule)
         u_hat_vecs = torch.permute(u_hat_vecs, (0, 2, 1, 3))

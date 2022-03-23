@@ -1,6 +1,6 @@
 import os
 import torch
-from typing import Tuple,List
+from typing import Tuple, List
 import pandas as pd
 from tqdm import tqdm
 from transformers import BertTokenizer
@@ -8,14 +8,16 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
 
+
 def load_data(path):
     train_df = pd.read_csv(os.path.join(path, 'train.csv'))
     train_df, val_df = train_test_split(train_df, test_size=0.05)
     return train_df, val_df
 
+
 class ToxicDataset(Dataset):
 
-    def __init__(self, tokenizer: BertTokenizer, dataframe: pd.DataFrame, max_seq_len,lazy: bool = False):
+    def __init__(self, tokenizer: BertTokenizer, dataframe: pd.DataFrame, max_seq_len: int, lazy: bool = False):
         self.tokenizer = tokenizer
         self.pad_idx = tokenizer.pad_token_id
         self.lazy = lazy
@@ -30,15 +32,12 @@ class ToxicDataset(Dataset):
         else:
             self.df = dataframe
 
-    @staticmethod
-    def row_to_tensor(tokenizer: BertTokenizer, row: pd.Series) -> Tuple[torch.LongTensor, torch.LongTensor]:
-        tokens = tokenizer.encode(row["comment_text"], add_special_tokens=True,max_length = 128)
-        if len(tokens) > 120:
-            tokens = tokens[:119] + [tokens[-1]]
+    def row_to_tensor(self, tokenizer: BertTokenizer, row: pd.Series) -> Tuple[torch.LongTensor, torch.LongTensor]:
+        tokens = tokenizer.encode(row["comment_text"], add_special_tokens=True,
+                                  truncation=True, max_length=self.max_seq_len)
         x = torch.LongTensor(tokens)
         y = torch.FloatTensor(row[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]])
         return x, y
-
 
     def __len__(self):
         if self.lazy:
@@ -51,6 +50,7 @@ class ToxicDataset(Dataset):
             return self.X[index], self.Y[index]
         else:
             return self.row_to_tensor(self.tokenizer, self.df.iloc[index])
+
 
 def collate_fn(batch: List[Tuple[torch.LongTensor, torch.LongTensor]], device: torch.device) \
         -> Tuple[torch.LongTensor, torch.LongTensor]:
