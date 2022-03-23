@@ -29,7 +29,7 @@ def save_checkpoint(model, suffix):
 def train(model, iterator, optimizer, scheduler):
     model.train()
     total_loss = 0
-    for x, y in tqdm(iterator):
+    for x, y in iterator:
         optimizer.zero_grad()
         mask = (x != 0).float()
         loss, outputs = model(x, attention_mask=mask, labels=y)
@@ -46,7 +46,7 @@ def evaluate(model, iterator):
     true = []
     with torch.no_grad():
         total_loss = 0
-        for x, y in tqdm(iterator):
+        for x, y in iterator:
             mask = (x != 0).float()
             loss, outputs = model(x, attention_mask=mask, labels=y)
             total_loss += loss
@@ -106,7 +106,7 @@ def train_and_eval(args):
     test_df = pd.read_csv(os.path.join(args.path, 'test.csv'))
     submission = pd.read_csv(os.path.join(args.path, 'sample_submission.csv'))
     columns = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
-    for i in tqdm(range(len(test_df) // args.batch_size + 1)):
+    for i in range(len(test_df) // args.batch_size + 1):
         batch_df = test_df.iloc[i * args.batch_size: (i + 1) * args.batch_size]
         assert (batch_df["id"] == submission["id"][i * args.batch_size: (i + 1) * args.batch_size]).all(), f"Id mismatch"
         texts = []
