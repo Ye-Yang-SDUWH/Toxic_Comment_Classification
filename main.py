@@ -25,6 +25,8 @@ def init(args):
         os.makedirs('checkpoints')
     if not os.path.exists(pjoin('./checkpoints', args.exp_name)):
         os.makedirs(pjoin('./checkpoints', args.exp_name))
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
 
 
 def save_checkpoint(model, suffix):
