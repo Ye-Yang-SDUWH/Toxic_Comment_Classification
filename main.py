@@ -12,7 +12,12 @@ from os.path import join as pjoin
 from torch.utils.data import DataLoader, RandomSampler
 from data import ToxicDataset, load_data, collate_fn
 from model import BertClassifier, load_tokenizer, BertClassifierCustom
-from utils import local_evaluate
+from utils import *
+
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+else:
+    device = torch.device('cpu')
 
 
 def init(args):
@@ -26,13 +31,14 @@ def save_checkpoint(model, suffix):
     torch.save(model.state_dict(), pjoin('./checkpoints', suffix + '.pth'))
 
 
-def train(model, iterator, optimizer, scheduler):
+def train(model, criterion, iterator, optimizer, scheduler):
     model.train()
     total_loss = 0
-    for x, y in tqdm(iterator):
+    for x, y in iterator:
         optimizer.zero_grad()
         mask = (x != 0).float()
-        loss, outputs = model(x, attention_mask=mask, labels=y)
+        outputs = model(x, attention_mask=mask)
+        loss = criterion(outputs, y)
         total_loss += loss.item()
         loss.backward()
         optimizer.step()
@@ -40,15 +46,16 @@ def train(model, iterator, optimizer, scheduler):
     print(f"Train loss {total_loss / len(iterator)}")
 
 
-def evaluate(model, iterator):
+def evaluate(model, criterion, iterator):
     model.eval()
     pred = []
     true = []
     with torch.no_grad():
         total_loss = 0
-        for x, y in tqdm(iterator):
+        for x, y in iterator:
             mask = (x != 0).float()
-            loss, outputs = model(x, attention_mask=mask, labels=y)
+            outputs = model(x, attention_mask=mask, labels=y)
+            loss = criterion(outputs, y)
             total_loss += loss
             true += y.cpu().numpy().tolist()
             pred += outputs.cpu().numpy().tolist()
@@ -59,16 +66,43 @@ def evaluate(model, iterator):
     print(f"Evaluate loss {total_loss / len(iterator)}")
 
 
-def train_and_eval(args):
-    if torch.cuda.is_available():
-        device = torch.device('cuda')
-    else:
-        device = torch.device('cpu')
-    print("Using", torch.cuda.device_count(), "GPUs!")
+def test(args, tokenizer, model):
+    model.eval()
 
+    test_df = pd.read_csv(os.path.join(args.path, 'test.csv'))
+    submission = pd.read_csv(os.path.join(args.path, 'sample_submission.csv'))
+    columns = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
+    for i in range(len(test_df) // args.batch_size + 1):
+        batch_df = test_df.iloc[i * args.batch_size: (i + 1) * args.batch_size]
+        assert (batch_df["id"] == submission["id"][i * args.batch_size: (i + 1) * args.batch_size]).all(), f"Id mismatch"
+        texts = []
+        for text in batch_df["comment_text"].tolist():
+            text = tokenizer.encode(text, add_special_tokens=True, max_length=128)
+            texts.append(torch.LongTensor(text))
+        x = pad_sequence(texts, batch_first=True, padding_value=tokenizer.pad_token_id).to(device)
+        mask = (x != tokenizer.pad_token_id).float().to(device)
+        with torch.no_grad():
+            _, outputs = model(x, attention_mask=mask)
+        outputs = outputs.cpu().numpy()
+        submission.iloc[i * args.batch_size: (i + 1) * args.batch_size][columns] = outputs
+
+    save_dir_number = 0
+    save_dir = pjoin(args.output_dir, "submission_{args.exp_name}_0")
+    while os.path.exists(save_dir + '.csv'):
+        save_dir_number += 1
+        save_dir_splits = save_dir.split('_')
+        save_dir = '_'.join(save_dir_splits[:-1] + [str(save_dir_number)])
+    submission.to_csv(save_dir + '.csv', index=False)
+
+    if os.path.exists(args.true_label_csv):
+        local_auc = local_evaluate(submission, args.true_label_csv, columns)
+        print('Column-wise AUC: ')
+        print(' | '.join(columns + ['average']))
+        print(' | '.join(map(str, local_auc)))
+
+
+def load_iterators(args, tokenizer):
     train_df, val_df = load_data(args.path)
-    tokenizer = load_tokenizer(args.bertname)
-
     train_dataset = ToxicDataset(tokenizer, train_df, args.max_len, lazy=True)
     dev_dataset = ToxicDataset(tokenizer, val_df, args.max_len, lazy=True)
     collate_fn_m = partial(collate_fn, device=device)
@@ -77,11 +111,19 @@ def train_and_eval(args):
     train_iterator = DataLoader(train_dataset, batch_size=args.batch_size,
                                 sampler=train_sampler, collate_fn=collate_fn_m)
     dev_iterator = DataLoader(dev_dataset, batch_size=args.batch_size, sampler=dev_sampler, collate_fn=collate_fn_m)
+    return train_iterator, dev_iterator
+
+
+def train_and_eval(args):
+    tokenizer = load_tokenizer(args.bertname)
+    train_iterator, dev_iterator = load_iterators(args, tokenizer)
 
     if args.classifier == 'none':
         model = BertClassifier(args).to(device)
     else:
         model = BertClassifierCustom(args).to(device)
+
+    criterion = Focal_Loss(alpha=args.alpha) if args.focal_loss else nn.BCELoss()
 
     no_decay = ['bias', 'LayerNorm.weight']
     optimizer_grouped_parameters = [
@@ -96,36 +138,44 @@ def train_and_eval(args):
 
     for i in range(args.epochs):
         print('=' * 50, f"EPOCH {i}", '=' * 50)
-        train(model, train_iterator, optimizer, scheduler)
-        evaluate(model, dev_iterator)
-
-    model.eval()
+        train(model, criterion, train_iterator, optimizer, scheduler)
+        evaluate(model, criterion, dev_iterator)
 
     save_checkpoint(model, args.exp_name)
+    test(args, tokenizer, model)
 
-    test_df = pd.read_csv(os.path.join(args.path, 'test.csv'))
-    submission = pd.read_csv(os.path.join(args.path, 'sample_submission.csv'))
-    columns = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
-    for i in tqdm(range(len(test_df) // args.batch_size + 1)):
-        batch_df = test_df.iloc[i * args.batch_size: (i + 1) * args.batch_size]
-        assert (batch_df["id"] == submission["id"][i * args.batch_size: (i + 1) * args.batch_size]).all(), f"Id mismatch"
-        texts = []
-        for text in batch_df["comment_text"].tolist():
-            text = tokenizer.encode(text, add_special_tokens=True, max_length=128)
-            texts.append(torch.LongTensor(text))
-        x = pad_sequence(texts, batch_first=True, padding_value=tokenizer.pad_token_id).to(device)
-        mask = (x != tokenizer.pad_token_id).float().to(device)
-        with torch.no_grad():
-            _, outputs = model(x, attention_mask=mask)
-        outputs = outputs.cpu().numpy()
-        submission.iloc[i * args.batch_size: (i + 1) * args.batch_size][columns] = outputs
-    submission.to_csv(f"submission_{args.exp_name}.csv", index=False)
 
-    if os.path.exists(args.true_label_csv):
-        local_auc = local_evaluate(submission, args.true_label_csv, columns)
-        print('Column-wise AUC: ')
-        print(' | '.join(columns + ['average']))
-        print(' | '.join(map(str, local_auc)))
+def train_and_eval_teacher(args):
+    tokenizer = load_tokenizer(args.bertname)
+    train_iterator, dev_iterator = load_iterators(args, tokenizer)
+
+    if args.classifier == 'none':
+        model = BertClassifier(args).to(device)
+    else:
+        model = BertClassifierCustom(args).to(device)
+
+    tasks = np.array(['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate'])
+    teacher_task_index = np.where(tasks == args.task)[0][0]
+    criterion = Focal_Loss_Teacher(teacher_task_index, alpha=args.alpha)
+
+    no_decay = ['bias', 'LayerNorm.weight']
+    optimizer_grouped_parameters = [
+        {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+         'weight_decay': 0.01},
+        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+    ]
+    # triangular learning rate, linearly grows untill half of first epoch, then linearly decays
+    total_steps = len(train_iterator) * args.epochs - args.warmup_steps
+    optimizer = AdamW(optimizer_grouped_parameters, lr=args.lr, eps=1e-8)
+    scheduler = get_linear_schedule_with_warmup(optimizer, args.warmup_steps, total_steps)
+
+    for i in range(args.epochs):
+        print('=' * 50, f"EPOCH {i}", '=' * 50)
+        train(model, criterion, train_iterator, optimizer, scheduler)
+        evaluate(model, criterion, dev_iterator)
+        test(args, tokenizer, model)
+
+    save_checkpoint(model, args.exp_name)
 
 
 if __name__ == "__main__":
@@ -140,6 +190,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=32, metavar='batch_size',
                         help='Size of batch)')
     parser.add_argument('--true_label_csv', type=str, default='./true_labels.csv')
+    parser.add_argument('--output_dir', type=str, default='./')
     parser.add_argument('--epochs', type=int, default=1, metavar='N',
                         help='number of episode to train ')
     parser.add_argument('--warmup_steps', type=int, default=10**3)
@@ -156,9 +207,19 @@ if __name__ == "__main__":
     parser.add_argument('--routings', type=int, default=3)
     parser.add_argument('--capsule_kernel', type=int, default=9)
     parser.add_argument('--classifier', type=str, choices=['bi_lstm', 'cnn', 'capsule', 'none'], default='none')
+    parser.add_argument('-t', '--task', type=str,
+                        choice=['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate', 'none'],
+                        default='none')
+    parser.add_argument('--kd_flag', type=str, choice=['teacher', 'student', 'none'], default='none')
+    parser.add_argument('--alpha', type=float, default=0.5)
 
     args = parser.parse_args()
 
     init(args)
 
-    train_and_eval(args)
+    if args.kd_flag == 'teacher':
+        train_and_eval_teacher(args)
+    elif args.kd_flag == 'student':
+        pass
+    else:
+        train_and_eval(args)

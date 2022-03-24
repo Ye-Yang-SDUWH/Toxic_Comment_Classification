@@ -17,7 +17,6 @@ class BertClassifier(nn.Module):
         super().__init__()
         self.bert = BertModel.from_pretrained(args.bertname)
         self.classifier = nn.Linear(self.bert.config.hidden_size, args.num_classes)
-        self.criterion = Focal_Loss() if args.focal_loss else nn.BCELoss()
 
     def forward(self, input_ids, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
                 labels=None):
@@ -29,10 +28,7 @@ class BertClassifier(nn.Module):
         cls_output = outputs[1]  # batch, hidden
         cls_output = self.classifier(cls_output)  # batch, 6
         cls_output = torch.sigmoid(cls_output)
-        loss = 0
-        if labels is not None:
-            loss = self.criterion(cls_output, labels)
-        return loss, cls_output
+        return cls_output
 
 
 class TransposeModule(nn.Module):
@@ -69,11 +65,6 @@ class BertClassifierCustom(nn.Module):
             self.classifier = nn.Identity()
             self.capsule = self.build_capsule_net(bert_config.hidden_size, args)
 
-        if not args.focal_loss:
-            self.criterion = nn.BCELoss()
-        else:
-            self.criterion = Focal_Loss()
-
     def forward(self, input_ids, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
                 labels=None):
         outputs = self.bert(input_ids,
@@ -84,10 +75,7 @@ class BertClassifierCustom(nn.Module):
         # outputs : [N, L, C]
         cls_output = self.capsule(self.classifier(outputs))  # batch, 6
         cls_output = torch.sigmoid(cls_output)
-        loss = 0
-        if labels is not None:
-            loss = self.criterion(cls_output, labels)
-        return loss, cls_output
+        return cls_output
 
     def build_cnn_layer(self, input_dim, args):
         return nn.Sequential(

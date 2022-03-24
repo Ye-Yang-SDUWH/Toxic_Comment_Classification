@@ -22,6 +22,24 @@ class Focal_Loss(nn.Module):
         return torch.mean(F_loss)
 
 
+class Focal_Loss_Teacher(nn.Module):
+    def __init__(self, index, alpha=0.5, gamma=2):
+        super(Focal_Loss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.index = index
+
+    def forward(self, inputs, targets):
+        # criterion = nn.BCELoss()
+        teacher_task_mask = torch.zeros_like(inputs)
+        teacher_task_mask[:, self.index] = 1
+        BCE_loss = F.binary_cross_entropy(inputs, targets, reduce=False)
+        pt = torch.exp(-BCE_loss)
+        alphas = self.alpha * targets + (1 - self.alpha) * (1 - targets)
+        F_loss = alphas * (1-pt)**self.gamma * BCE_loss * teacher_task_mask
+        return torch.mean(F_loss)
+
+
 def auc(y_pred, y_true):
     return metrics.roc_auc_score(y_true, y_pred)
 
