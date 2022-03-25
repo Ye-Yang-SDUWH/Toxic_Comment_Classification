@@ -24,7 +24,7 @@ class Focal_Loss(nn.Module):
 
 class Focal_Loss_Teacher(nn.Module):
     def __init__(self, index, alpha=0.5, gamma=2):
-        super(Focal_Loss, self).__init__()
+        super().__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.index = index
