@@ -210,9 +210,9 @@ if __name__ == "__main__":
     parser.add_argument('--capsule_kernel', type=int, default=9)
     parser.add_argument('--classifier', type=str, choices=['bi_lstm', 'cnn', 'capsule', 'none'], default='none')
     parser.add_argument('-t', '--task', type=str,
-                        choice=['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate', 'none'],
+                        choices=['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate', 'none'],
                         default='none')
-    parser.add_argument('--kd_flag', type=str, choice=['teacher', 'student', 'none'], default='none')
+    parser.add_argument('--kd_flag', type=str, choices=['teacher', 'student', 'none'], default='none')
     parser.add_argument('--alpha', type=float, default=0.5)
 
     args = parser.parse_args()
