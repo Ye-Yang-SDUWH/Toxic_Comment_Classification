@@ -23,8 +23,6 @@ else:
 def init(args):
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')
-    if not os.path.exists(pjoin('./checkpoints', args.exp_name)):
-        os.makedirs(pjoin('./checkpoints', args.exp_name))
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
@@ -79,17 +77,17 @@ def test(args, tokenizer, model):
         assert (batch_df["id"] == submission["id"][i * args.batch_size: (i + 1) * args.batch_size]).all(), f"Id mismatch"
         texts = []
         for text in batch_df["comment_text"].tolist():
-            text = tokenizer.encode(text, add_special_tokens=True, max_length=128)
+            text = tokenizer.encode(text, add_special_tokens=True, max_length=128, truncation=True)
             texts.append(torch.LongTensor(text))
         x = pad_sequence(texts, batch_first=True, padding_value=tokenizer.pad_token_id).to(device)
         mask = (x != tokenizer.pad_token_id).float().to(device)
         with torch.no_grad():
-            _, outputs = model(x, attention_mask=mask)
+            outputs = model(x, attention_mask=mask)
         outputs = outputs.cpu().numpy()
         submission.iloc[i * args.batch_size: (i + 1) * args.batch_size][columns] = outputs
 
     save_dir_number = 0
-    save_dir = pjoin(args.output_dir, "submission_{args.exp_name}_0")
+    save_dir = pjoin(args.output_dir, f"submission_{args.exp_name}_0")
     while os.path.exists(save_dir + '.csv'):
         save_dir_number += 1
         save_dir_splits = save_dir.split('_')
@@ -156,6 +154,11 @@ def train_and_eval_teacher(args):
     else:
         model = BertClassifierCustom(args).to(device)
 
+    if args.resume:
+        print('Fine-tune model from ' + args.resume)
+        state_dicts = torch.load(args.resume, map_location=device)
+        model.load_state_dict(state_dicts)
+
     tasks = np.array(['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate'])
     teacher_task_index = np.where(tasks == args.task)[0][0]
     criterion = Focal_Loss_Teacher(teacher_task_index, alpha=args.alpha)
@@ -214,8 +217,10 @@ if __name__ == "__main__":
                         default='none')
     parser.add_argument('--kd_flag', type=str, choices=['teacher', 'student', 'none'], default='none')
     parser.add_argument('--alpha', type=float, default=0.5)
+    parser.add_argument('--resume', type=str, default='')
 
     args = parser.parse_args()
+    print(args)
 
     init(args)
 
