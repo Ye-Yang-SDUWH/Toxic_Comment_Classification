@@ -17,11 +17,12 @@ def load_data(path):
 
 class ToxicDataset(Dataset):
 
-    def __init__(self, tokenizer: BertTokenizer, dataframe: pd.DataFrame, max_seq_len: int, lazy: bool = False):
+    def __init__(self, tokenizer: BertTokenizer, dataframe: pd.DataFrame, max_seq_len: int, lazy: bool = False, columns: Optional[List[str]] = None):
         self.tokenizer = tokenizer
         self.pad_idx = tokenizer.pad_token_id
         self.lazy = lazy
         self.max_seq_len = max_seq_len
+	self.columns = columns if columns is not None else ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
         if not self.lazy:
             self.X = []
             self.Y = []
@@ -32,14 +33,11 @@ class ToxicDataset(Dataset):
         else:
             self.df = dataframe
 
-    def row_to_tensor(self, tokenizer: BertTokenizer, row: pd.Series,
-                      columns: Optional[List[str]] = None) -> Tuple[torch.LongTensor, torch.LongTensor]:
+    def row_to_tensor(self, tokenizer: BertTokenizer, row: pd.Series) -> Tuple[torch.LongTensor, torch.LongTensor]:
         tokens = tokenizer.encode(row["comment_text"], add_special_tokens=True,
                                   truncation=True, max_length=self.max_seq_len)
-        if columns is None:
-            columns = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
         x = torch.LongTensor(tokens)
-        y = torch.FloatTensor(row[columns])
+        y = torch.FloatTensor(row[self.columns])
         return x, y
 
     def __len__(self):
