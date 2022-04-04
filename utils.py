@@ -115,6 +115,7 @@ if __name__ == '__main__':
     parser.add_argument('--column_name', type=str,
                         choices=['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate'])
     parser.add_argument('--suffix', type=str)
+    parser.add_argument('--num_classes', type=int, default=6)
     args = parser.parse_args()
 
     tokenizer = load_tokenizer('bert-base-uncased')
