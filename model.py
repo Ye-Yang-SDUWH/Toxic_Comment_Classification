@@ -8,10 +8,13 @@ from transformers import BertModel, DistilBertModel, AutoConfig
 class BertClassifier(nn.Module):
     def __init__(self, args):
         super().__init__()
-        if args.bertname.startswith('bert'):
+        self.bertname = args.bertname
+        if self.bertname.startswith('bert'):
             self.bert = BertModel.from_pretrained(args.bertname)
-        elif args.bertname.startswith('distilbert'):
+            self.get_output_fn = lambda out: out[1]
+        elif self.bertname.startswith('distilbert'):
             self.bert = DistilBertModel.from_pretrained(args.bertname)
+            self.get_output_fn = lambda out: out[0][:, 0, :]
         self.classifier = nn.Linear(self.bert.config.hidden_size, args.num_classes)
 
     def forward(self, input_ids, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
@@ -19,7 +22,7 @@ class BertClassifier(nn.Module):
         outputs = self.bert(input_ids,
                             attention_mask=attention_mask,
                             head_mask=head_mask)
-        cls_output = outputs[1]  # batch, hidden
+        cls_output = self.get_output_fn(outputs)  # batch, hidden
         cls_output = self.classifier(cls_output)  # batch, 6
         cls_output = torch.sigmoid(cls_output)
         return cls_output
