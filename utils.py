@@ -117,3 +117,4 @@ if __name__ == '__main__':
     res_df = generate_teacher_labels(model, args.column_name, args.suffix,
                                      tokenizer, args.state_dict_path,
                                      csv_path='./train.csv', device=device)
+    res_df.to_csv('./teachers_' + args.column_name + '.csv')
