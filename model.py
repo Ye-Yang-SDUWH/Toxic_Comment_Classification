@@ -1,15 +1,8 @@
 import torch
 import os
 import torch.nn as nn
-from utils import Focal_Loss
 from capsnet import Capsule
-from transformers import BertTokenizer, BertModel, AutoConfig
-
-
-def load_tokenizer(bert_model_name):
-    tokenizer = BertTokenizer.from_pretrained(bert_model_name, do_lower_case=True)
-    assert tokenizer.pad_token_id == 0, "Padding value used in masks is set to zero, please change it everywhere"
-    return tokenizer
+from transformers import BertModel, AutoConfig
 
 
 class BertClassifier(nn.Module):

@@ -11,7 +11,7 @@ from functools import partial
 from os.path import join as pjoin
 from torch.utils.data import DataLoader, RandomSampler
 from data import ToxicDataset, load_data, collate_fn
-from model import BertClassifier, load_tokenizer, BertClassifierCustom
+from model import BertClassifier, BertClassifierCustom
 from utils import *
 
 if torch.cuda.is_available():

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import pandas as pd
 from torch.nn.utils.rnn import pad_sequence
 from sklearn import metrics
-from model import load_tokenizer, BertClassifier
+from transformers import BertTokenizer
 
 
 class Focal_Loss(nn.Module):
@@ -56,6 +56,12 @@ class Focal_Loss_Teacher(nn.Module):
         loss_true = self.criterion(inputs, targets_true)
         loss_distill = self.criterion(inputs, targets_teacher)
         return (1 - distill_weight) * loss_true + distill_weight * loss_distill
+
+
+def load_tokenizer(bert_model_name):
+    tokenizer = BertTokenizer.from_pretrained(bert_model_name, do_lower_case=True)
+    assert tokenizer.pad_token_id == 0, "Padding value used in masks is set to zero, please change it everywhere"
+    return tokenizer
 
 
 def auc(y_pred, y_true):
@@ -113,7 +119,10 @@ if __name__ == '__main__':
 
     tokenizer = load_tokenizer('bert-base-uncased')
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+
+    from model import BertClassifier
     model = BertClassifier(args)
+
     res_df = generate_teacher_labels(model, args.column_name, args.suffix,
                                      tokenizer, args.state_dict_path,
                                      csv_path='./train.csv', device=device)
