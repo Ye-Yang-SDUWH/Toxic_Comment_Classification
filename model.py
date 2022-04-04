@@ -18,8 +18,6 @@ class BertClassifier(nn.Module):
                 labels=None):
         outputs = self.bert(input_ids,
                             attention_mask=attention_mask,
-                            token_type_ids=token_type_ids,
-                            position_ids=position_ids,
                             head_mask=head_mask)
         cls_output = outputs[1]  # batch, hidden
         cls_output = self.classifier(cls_output)  # batch, 6

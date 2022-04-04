@@ -22,7 +22,7 @@ class ToxicDataset(Dataset):
         self.pad_idx = tokenizer.pad_token_id
         self.lazy = lazy
         self.max_seq_len = max_seq_len
-	self.columns = columns if columns is not None else ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
+        self.columns = columns if columns is not None else ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
         if not self.lazy:
             self.X = []
             self.Y = []
