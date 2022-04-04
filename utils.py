@@ -1,10 +1,14 @@
 import os
 import sys
 import torch
+import argparse
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import pandas as pd
+from torch.nn.utils.rnn import pad_sequence
 from sklearn import metrics
+from model import load_tokenizer, BertClassifier
 
 
 class Focal_Loss(nn.Module):
@@ -40,6 +44,20 @@ class Focal_Loss_Teacher(nn.Module):
         return torch.mean(F_loss)
 
 
+class Focal_Loss_Teacher(nn.Module):
+    def __init__(self, alpha=0.5, gamma=2):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.criterion = Focal_Loss()
+
+    def forward(self, inputs, targets, distill_weight=0.5):
+        targets_true, targets_teacher = torch.split(targets, targets.shape[-1]//2, dim=-1)
+        loss_true = self.criterion(inputs, targets_true)
+        loss_distill = self.criterion(inputs, targets_teacher)
+        return (1 - distill_weight) * loss_true + distill_weight * loss_distill
+
+
 def auc(y_pred, y_true):
     return metrics.roc_auc_score(y_true, y_pred)
 
@@ -55,16 +73,47 @@ def local_evaluate(submission_df, test_labels, columns):
     return columns_auc
 
 
+def generate_teacher_labels(model, column_name, column_suffix,
+                            tokenizer, state_dict_path,
+                            csv_path, device, batch_size=32):
+    columns = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
+    index = np.where(np.array(columns) == column_name)[0][0]
+    model.load_state_dict(torch.load(state_dict_path, map_location=device))
+    model.eval()
+
+    test_df = pd.read_csv(csv_path)
+    teacher_column = np.zeros((len(test_df)))
+    for i in range(len(test_df) // batch_size + 1):
+        batch_df = test_df.iloc[i * batch_size: (i + 1) * batch_size]
+        texts = []
+        for text in batch_df["comment_text"].tolist():
+            text = tokenizer.encode(text, add_special_tokens=True, max_length=128, truncation=True)
+            texts.append(torch.LongTensor(text))
+        x = pad_sequence(texts, batch_first=True, padding_value=tokenizer.pad_token_id).to(device)
+        mask = (x != tokenizer.pad_token_id).float().to(device)
+        with torch.no_grad():
+            outputs = model(x, attention_mask=mask)
+        outputs = outputs.cpu().numpy()
+        teacher_column[i * batch_size: (i + 1) * batch_size] = outputs[:, index]
+    test_df[column_name + column_suffix] = teacher_column
+    return test_df
+
+
 if __name__ == '__main__':
-    submission_csv = sys.argv[1]
-    if len(sys.argv) > 2:
-        true_label_csv = sys.argv[2]
-    else:
-        true_label_csv = 'true_labels.csv'
-    if os.path.exists(submission_csv) and os.path.exists(true_label_csv):
-        submission_df = pd.read_csv(submission_csv)
-        labels_df = pd.read_csv(true_label_csv)
-        columns = submission_df.columns[1:]
-        print(local_evaluate(submission_df, labels_df, columns))
-    else:
-        print('Target csv not found...')
+    # generate teacher labels
+    parser = argparse.ArgumentParser(description='Toxic Comments Classification')
+    parser.add_argument('--exp_name', type=str, default='exp')
+    parser.add_argument('--datapath', type=str, default='../data')
+    parser.add_argument('--state_dict_path', type=str)
+    parser.add_argument('--bertname', type=str, default='bert-base-uncased')
+    parser.add_argument('--column_name', type=str,
+                        choices=['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate'])
+    parser.add_argument('--suffix', type=str)
+    args = parser.parse_args()
+
+    tokenizer = load_tokenizer()
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    model = BertClassifier(args)
+    res_df = generate_teacher_labels(model, args.column_name, args.suffix,
+                                     tokenizer, args.state_dict_path,
+                                     csv_path='./train.csv', device=device)
