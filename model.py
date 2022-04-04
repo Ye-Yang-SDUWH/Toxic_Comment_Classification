@@ -2,13 +2,16 @@ import torch
 import os
 import torch.nn as nn
 from capsnet import Capsule
-from transformers import BertModel, AutoConfig
+from transformers import BertModel, DistilBertModel, AutoConfig
 
 
 class BertClassifier(nn.Module):
     def __init__(self, args):
         super().__init__()
-        self.bert = BertModel.from_pretrained(args.bertname)
+        if args.bertname.startswith('bert'):
+            self.bert = BertModel.from_pretrained(args.bertname)
+        elif args.bertname.startswith('distilbert'):
+            self.bert = DistilBertModel.from_pretrained(args.bertname)
         self.classifier = nn.Linear(self.bert.config.hidden_size, args.num_classes)
 
     def forward(self, input_ids, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,

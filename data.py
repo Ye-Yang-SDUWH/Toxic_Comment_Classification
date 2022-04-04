@@ -1,6 +1,6 @@
 import os
 import torch
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 import pandas as pd
 from tqdm import tqdm
 from transformers import BertTokenizer
@@ -32,11 +32,14 @@ class ToxicDataset(Dataset):
         else:
             self.df = dataframe
 
-    def row_to_tensor(self, tokenizer: BertTokenizer, row: pd.Series) -> Tuple[torch.LongTensor, torch.LongTensor]:
+    def row_to_tensor(self, tokenizer: BertTokenizer, row: pd.Series,
+                      columns: Optional[List[str]] = None) -> Tuple[torch.LongTensor, torch.LongTensor]:
         tokens = tokenizer.encode(row["comment_text"], add_special_tokens=True,
                                   truncation=True, max_length=self.max_seq_len)
+        if columns is None:
+            columns = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
         x = torch.LongTensor(tokens)
-        y = torch.FloatTensor(row[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]])
+        y = torch.FloatTensor(row[columns])
         return x, y
 
     def __len__(self):

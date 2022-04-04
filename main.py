@@ -101,10 +101,10 @@ def test(args, tokenizer, model):
         print(' | '.join(map(str, local_auc)))
 
 
-def load_iterators(args, tokenizer):
+def load_iterators(args, tokenizer, columns=None):
     train_df, val_df = load_data(args.path)
-    train_dataset = ToxicDataset(tokenizer, train_df, args.max_len, lazy=True)
-    dev_dataset = ToxicDataset(tokenizer, val_df, args.max_len, lazy=True)
+    train_dataset = ToxicDataset(tokenizer, train_df, args.max_len, lazy=True, columns=columns)
+    dev_dataset = ToxicDataset(tokenizer, val_df, args.max_len, lazy=True, columns=columns)
     collate_fn_m = partial(collate_fn, device=device)
     train_sampler = RandomSampler(train_dataset)
     dev_sampler = RandomSampler(dev_dataset)
@@ -183,6 +183,44 @@ def train_and_eval_teacher(args):
     save_checkpoint(model, args.exp_name)
 
 
+def train_and_eval_student(args):
+    columns = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
+    columns += list(map(lambda x: x + '_ft', columns))
+    tokenizer = load_tokenizer(args.bertname)
+    train_iterator, dev_iterator = load_iterators(args, tokenizer, columns=columns)
+
+    if args.classifier == 'none':
+        model = BertClassifier(args).to(device)
+    else:
+        model = BertClassifierCustom(args).to(device)
+
+    if args.resume:
+        print('Fine-tune model from ' + args.resume)
+        state_dicts = torch.load(args.resume, map_location=device)
+        model.load_state_dict(state_dicts)
+
+    criterion = Focal_Loss_Distill(alpha=args.alpha)
+
+    no_decay = ['bias', 'LayerNorm.weight']
+    optimizer_grouped_parameters = [
+        {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+         'weight_decay': 0.01},
+        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+    ]
+    # triangular learning rate, linearly grows untill half of first epoch, then linearly decays
+    total_steps = len(train_iterator) * args.epochs - args.warmup_steps
+    optimizer = AdamW(optimizer_grouped_parameters, lr=args.lr, eps=1e-8)
+    scheduler = get_linear_schedule_with_warmup(optimizer, args.warmup_steps, total_steps)
+
+    for i in range(args.epochs):
+        print('=' * 50, f"EPOCH {i}", '=' * 50)
+        train(model, criterion, train_iterator, optimizer, scheduler)
+        evaluate(model, criterion, dev_iterator)
+        test(args, tokenizer, model)
+
+    save_checkpoint(model, args.exp_name)
+
+
 if __name__ == "__main__":
     # Training settings
     parser = argparse.ArgumentParser(description='Toxic Comments Classification')
@@ -227,6 +265,6 @@ if __name__ == "__main__":
     if args.kd_flag == 'teacher':
         train_and_eval_teacher(args)
     elif args.kd_flag == 'student':
-        pass
+        train_and_eval_student(args)
     else:
         train_and_eval(args)

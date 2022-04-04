@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import pandas as pd
 from torch.nn.utils.rnn import pad_sequence
 from sklearn import metrics
-from transformers import BertTokenizer
+from transformers import BertTokenizer, DistilBertTokenizer
 
 
 class Focal_Loss(nn.Module):
@@ -44,7 +44,7 @@ class Focal_Loss_Teacher(nn.Module):
         return torch.mean(F_loss)
 
 
-class Focal_Loss_Teacher(nn.Module):
+class Focal_Loss_Distill(nn.Module):
     def __init__(self, alpha=0.5, gamma=2):
         super().__init__()
         self.alpha = alpha
@@ -59,9 +59,16 @@ class Focal_Loss_Teacher(nn.Module):
 
 
 def load_tokenizer(bert_model_name):
-    tokenizer = BertTokenizer.from_pretrained(bert_model_name, do_lower_case=True)
-    assert tokenizer.pad_token_id == 0, "Padding value used in masks is set to zero, please change it everywhere"
-    return tokenizer
+    if bert_model_name.startswith('bert'):
+        tokenizer = BertTokenizer.from_pretrained(bert_model_name, do_lower_case=True)
+        assert tokenizer.pad_token_id == 0, "Padding value used in masks is set to zero, please change it everywhere"
+        return tokenizer
+    elif bert_model_name.startswith('distilbert'):
+        tokenizer = DistilBertTokenizer.from_pretrained(bert_model_name, do_lower_case=True)
+        assert tokenizer.pad_token_id == 0, "Padding value used in masks is set to zero, please change it everywhere"
+        return tokenizer
+    else:
+        raise ValueError('Wrong bert name!')
 
 
 def auc(y_pred, y_true):
