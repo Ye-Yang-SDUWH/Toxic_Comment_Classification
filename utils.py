@@ -122,9 +122,9 @@ if __name__ == '__main__':
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     from model import BertClassifier
-    model = BertClassifier(args)
+    model = BertClassifier(args).to(device)
 
     res_df = generate_teacher_labels(model, args.column_name, args.suffix,
                                      tokenizer, args.state_dict_path,
                                      csv_path='./train.csv', device=device)
-    res_df.to_csv('./teachers_' + args.column_name + '.csv')
+    res_df.to_csv('./teachers_' + args.column_name + '.csv', index=False)
