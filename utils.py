@@ -111,7 +111,7 @@ if __name__ == '__main__':
     parser.add_argument('--suffix', type=str)
     args = parser.parse_args()
 
-    tokenizer = load_tokenizer()
+    tokenizer = load_tokenizer('bert-base-uncased')
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model = BertClassifier(args)
     res_df = generate_teacher_labels(model, args.column_name, args.suffix,
