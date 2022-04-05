@@ -90,25 +90,43 @@ def generate_teacher_labels(model, column_name, column_suffix,
                             tokenizer, state_dict_path,
                             csv_path, device, batch_size=32):
     columns = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
-    index = np.where(np.array(columns) == column_name)[0][0]
     model.load_state_dict(torch.load(state_dict_path, map_location=device))
     model.eval()
 
     test_df = pd.read_csv(csv_path)
-    teacher_column = np.zeros((len(test_df)))
-    for i in range(len(test_df) // batch_size + 1):
-        batch_df = test_df.iloc[i * batch_size: (i + 1) * batch_size]
-        texts = []
-        for text in batch_df["comment_text"].tolist():
-            text = tokenizer.encode(text, add_special_tokens=True, max_length=128, truncation=True)
-            texts.append(torch.LongTensor(text))
-        x = pad_sequence(texts, batch_first=True, padding_value=tokenizer.pad_token_id).to(device)
-        mask = (x != tokenizer.pad_token_id).float().to(device)
-        with torch.no_grad():
-            outputs = model(x, attention_mask=mask)
-        outputs = outputs.cpu().numpy()
-        teacher_column[i * batch_size: (i + 1) * batch_size] = outputs[:, index]
-    test_df[column_name + column_suffix] = teacher_column
+
+    if column_name != 'all':
+        index = np.where(np.array(columns) == column_name)[0][0]
+        teacher_column = np.zeros((len(test_df)))
+        for i in range(len(test_df) // batch_size + 1):
+            batch_df = test_df.iloc[i * batch_size: (i + 1) * batch_size]
+            texts = []
+            for text in batch_df["comment_text"].tolist():
+                text = tokenizer.encode(text, add_special_tokens=True, max_length=128, truncation=True)
+                texts.append(torch.LongTensor(text))
+            x = pad_sequence(texts, batch_first=True, padding_value=tokenizer.pad_token_id).to(device)
+            mask = (x != tokenizer.pad_token_id).float().to(device)
+            with torch.no_grad():
+                outputs = model(x, attention_mask=mask)
+            outputs = outputs.cpu().numpy()
+            teacher_column[i * batch_size: (i + 1) * batch_size] = outputs[:, index]
+        test_df[column_name + column_suffix] = teacher_column
+    else:
+        teacher_column = np.zeros((len(test_df), len(columns)))
+        for i in range(len(test_df) // batch_size + 1):
+            batch_df = test_df.iloc[i * batch_size: (i + 1) * batch_size]
+            texts = []
+            for text in batch_df["comment_text"].tolist():
+                text = tokenizer.encode(text, add_special_tokens=True, max_length=128, truncation=True)
+                texts.append(torch.LongTensor(text))
+            x = pad_sequence(texts, batch_first=True, padding_value=tokenizer.pad_token_id).to(device)
+            mask = (x != tokenizer.pad_token_id).float().to(device)
+            with torch.no_grad():
+                outputs = model(x, attention_mask=mask)
+            outputs = outputs.cpu().numpy()
+            teacher_column[i * batch_size: (i + 1) * batch_size] = outputs
+        for i, col in enumerate(columns):
+            test_df[col + column_suffix] = teacher_column[:, i]
     return test_df
 
 
@@ -120,7 +138,7 @@ if __name__ == '__main__':
     parser.add_argument('--state_dict_path', type=str)
     parser.add_argument('--bertname', type=str, default='bert-base-uncased')
     parser.add_argument('--column_name', type=str,
-                        choices=['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate'])
+                        choices=['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate', 'all'])
     parser.add_argument('--suffix', type=str)
     parser.add_argument('--num_classes', type=int, default=6)
     args = parser.parse_args()
