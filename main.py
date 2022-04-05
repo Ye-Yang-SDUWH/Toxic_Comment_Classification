@@ -185,7 +185,7 @@ def train_and_eval_teacher(args):
 
 def train_and_eval_student(args):
     columns = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
-    columns += list(map(lambda x: x + '_ft', columns))
+    columns += list(map(lambda x: x + args.suffix, columns))
     tokenizer = load_tokenizer(args.bertname)
     train_iterator, dev_iterator = load_iterators(args, tokenizer, columns=columns)
 
@@ -256,6 +256,7 @@ if __name__ == "__main__":
     parser.add_argument('--kd_flag', type=str, choices=['teacher', 'student', 'none'], default='none')
     parser.add_argument('--alpha', type=float, default=0.5)
     parser.add_argument('--resume', type=str, default='')
+    parser.add_argument('--suffix', type=str, default='_ft', help='suffix of teacher labels for distillation')
 
     args = parser.parse_args()
     print(args)
