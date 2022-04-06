@@ -200,6 +200,7 @@ def train_and_eval_student(args):
         model.load_state_dict(state_dicts)
 
     criterion = Focal_Loss_Distill(alpha=args.alpha)
+    assert len(args.distill_weights) == 0 or len(args.distill_weights) == args.epochs
 
     no_decay = ['bias', 'LayerNorm.weight']
     optimizer_grouped_parameters = [
@@ -213,9 +214,13 @@ def train_and_eval_student(args):
     scheduler = get_linear_schedule_with_warmup(optimizer, args.warmup_steps, total_steps)
 
     for i in range(args.epochs):
+        if len(args.distill_weights):
+            distill_criterion = partial(criterion, distill_weight=float(args.distill_weights[i]))
+        else:
+            distill_criterion = criterion
         print('=' * 50, f"EPOCH {i}", '=' * 50)
         train(model, criterion, train_iterator, optimizer, scheduler)
-        evaluate(model, criterion, dev_iterator)
+        evaluate(model, distill_criterion, dev_iterator)
         test(args, tokenizer, model)
 
     save_checkpoint(model, args.exp_name)
@@ -257,6 +262,7 @@ if __name__ == "__main__":
     parser.add_argument('--alpha', type=float, default=0.5)
     parser.add_argument('--resume', type=str, default='')
     parser.add_argument('--suffix', type=str, default='_ft', help='suffix of teacher labels for distillation')
+    parser.add_argument('-dw', '--distill_weights', nargs='*')
 
     args = parser.parse_args()
     print(args)
